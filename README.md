@@ -1,4 +1,4 @@
-# **Basic Client Examples to demonstrate Inbound Calls with Call Bridging and Recording using Enablex Voice APIs. **
+# Inbound Call Bridging and Recording: EnableX Programmable Voice APIs for Seamless Demonstrations
 This example contains instructions how users can initiate Inbound Calls and bridge the call and record the conversation.
 
 

@@ -24,7 +24,7 @@ PUBLIC_WEBHOOK_URL=
 
   # Set this if WEBHOOK set to `true` Else leave it empty
   # Set to web server address where this service is deployed and publicly accessible
-  PUBLIC_WEBHOOK_HOST=true
+  PUBLIC_WEBHOOK_HOST=
 
   # Either WEBHOOK or NGROK should be set to `true`
   # Set this to `true` if you want to deploy this service on a web server running locally on your own computer at a given port.

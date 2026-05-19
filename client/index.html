@@ -3,90 +3,578 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="description" content="EnableX Voice Service">
+  <meta name="description" content="EnableX Voice Service - Inbound Bridge Recording">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>Sample App: Make an outbound call using EnableX Voice Service</title>
+  <title>EnableX Voice — Inbound Bridge + Recording</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css"
     integrity="sha256-h20CPZ0QyXlBuAw7A+KluUYx/3pK+c7lYEpqLTlxjYQ=" crossorigin="anonymous" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/fontawesome.min.css"
-    integrity="sha256-CuUPKpitgFmSNQuPDL5cEfPOOJT/+bwUlhfumDJ9CI4=" crossorigin="anonymous" />
   <link rel="shortcut icon" type="image/ico" href="./public/img/favicon.ico" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.0/css/bootstrap.min.css"
     integrity="sha256-aAr2Zpq8MZ+YA/D6JtRD3xtrwpEz2IqOS+pWD/7XKIw=" crossorigin="anonymous" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.1.4/toastr.min.css"
-    integrity="sha256-R91pD48xW+oHbpJYGn5xR0Q7tMhH4xOrWn1QqMRINtA=" crossorigin="anonymous" />
   <link href="./public/css/style-sign-in.css" rel="stylesheet">
+  <style>
+    .page-hero {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      color: #fff;
+      padding: 28px 0 22px;
+      margin-bottom: 32px;
+    }
+    .page-hero h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      letter-spacing: -0.3px;
+    }
+    .page-hero p {
+      font-size: 0.95rem;
+      opacity: 0.8;
+      margin: 0;
+    }
+    .page-hero .badge-demo {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #fff;
+      font-size: 0.72rem;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.8px;
+      vertical-align: middle;
+      margin-left: 10px;
+    }
+
+    /* Call flow steps */
+    .flow-card {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .flow-card h6 {
+      font-weight: 700;
+      font-size: 0.78rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 16px;
+    }
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 14px;
+      position: relative;
+    }
+    .flow-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: 15px;
+      top: 32px;
+      width: 2px;
+      height: calc(100% - 6px);
+      background: #e9ecef;
+    }
+    .flow-step-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+      margin-right: 12px;
+      position: relative;
+      z-index: 1;
+    }
+    .flow-step-icon.incoming  { background: #e3f2fd; color: #1565c0; }
+    .flow-step-icon.accept    { background: #e8f5e9; color: #2e7d32; }
+    .flow-step-icon.bridge    { background: #fff3e0; color: #e65100; }
+    .flow-step-icon.record    { background: #fce4ec; color: #c62828; }
+    .flow-step-icon.hangup    { background: #ede7f6; color: #4527a0; }
+    .flow-step-text strong {
+      display: block;
+      font-size: 0.875rem;
+      color: #333;
+      font-weight: 600;
+    }
+    .flow-step-text span {
+      font-size: 0.78rem;
+      color: #999;
+    }
+
+    /* Status indicator */
+    .status-card {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+    }
+    .status-card h6 {
+      font-weight: 700;
+      font-size: 0.78rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 10px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: #f0f4f8;
+      color: #555;
+    }
+    .status-pill.idle     { background: #f5f5f5; color: #888; }
+    .status-pill.active   { background: #e8f5e9; color: #2e7d32; }
+    .status-pill.recording{ background: #fce4ec; color: #c62828; }
+    .status-pill.ended    { background: #ede7f6; color: #4527a0; }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      display: inline-block;
+    }
+    .status-dot.pulse {
+      animation: pulse-dot 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    /* Event log */
+    .log-card {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .log-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid #f0f0f0;
+      background: #fafafa;
+    }
+    .log-card-header h6 {
+      font-weight: 700;
+      font-size: 0.78rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #888;
+      margin: 0;
+    }
+    .log-live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #2e7d32;
+      background: #e8f5e9;
+      padding: 2px 9px;
+      border-radius: 10px;
+    }
+    .log-live-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #2e7d32;
+      animation: pulse-dot 1.2s ease-in-out infinite;
+    }
+    .log-body {
+      padding: 16px;
+      min-height: 340px;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .log-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 280px;
+      color: #bbb;
+    }
+    .log-empty i { font-size: 2.5rem; margin-bottom: 12px; }
+    .log-empty p { font-size: 0.85rem; margin: 0; }
+
+    /* Event entries */
+    .event-entry {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      border-left: 3px solid transparent;
+      transition: background 0.2s;
+      animation: slide-in 0.3s ease;
+    }
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .event-entry:hover { background: #fafafa; }
+
+    .event-entry.incomingcall      { border-left-color: #1565c0; background: #f0f7ff; }
+    .event-entry.connected         { border-left-color: #2e7d32; background: #f0faf0; }
+    .event-entry.bridged           { border-left-color: #e65100; background: #fff8f0; }
+    .event-entry.recording_started { border-left-color: #c62828; background: #fff5f7; }
+    .event-entry.recording_stopped { border-left-color: #888; background: #f8f8f8; }
+    .event-entry.bridge_disconnected { border-left-color: #f57f17; background: #fffde7; }
+    .event-entry.disconnected      { border-left-color: #4527a0; background: #f5f0ff; }
+
+    .event-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .incomingcall      .event-icon { background: #bbdefb; color: #1565c0; }
+    .connected         .event-icon { background: #c8e6c9; color: #2e7d32; }
+    .bridged           .event-icon { background: #ffe0b2; color: #e65100; }
+    .recording_started .event-icon { background: #ffcdd2; color: #c62828; }
+    .recording_stopped .event-icon { background: #e0e0e0; color: #555; }
+    .bridge_disconnected .event-icon { background: #fff9c4; color: #f57f17; }
+    .disconnected      .event-icon { background: #d1c4e9; color: #4527a0; }
+
+    .event-body strong {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 1px;
+    }
+    .event-body .event-detail {
+      font-size: 0.75rem;
+      color: #777;
+      font-family: 'Courier New', monospace;
+    }
+    .event-time {
+      font-size: 0.7rem;
+      color: #bbb;
+      margin-left: auto;
+      white-space: nowrap;
+      padding-top: 3px;
+    }
+
+    /* Recording pulse overlay */
+    .recording-indicator {
+      display: none;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #c62828;
+      margin-top: 8px;
+    }
+    .recording-indicator.active { display: flex; }
+    .recording-indicator .rec-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #c62828;
+      animation: pulse-dot 0.8s ease-in-out infinite;
+    }
+
+    footer { margin-top: 40px; }
+  </style>
 </head>
 
 <body>
   <header>
-    <!-- =================================================== Nav section ============================-->
     <div id="app" class="container">
       <nav class="navbar navbar-expand-lg navbar-light">
         <a class="navbar-brand" href="https://www.enablex.io/">
-          <img src="./public/img/enableX_logo.png" alt="EnableX">
+          <img src="./public/img/enableX_logo.png" alt="EnableX" height="34">
         </a>
         <div class="navbar-collapse collapse nav justify-content-end">
           <ul class="nav justify-content-end ton-hedr-nav">
             <li class="nav-item">
-              <a class="nav-link login">Sample Code <span class='fa fa-code'></span></a>
+              <a class="nav-link login" href="https://github.com/EnableX/voice-inbound-bridge-recording" target="_blank">
+                Sample Code <span class='fa fa-code'></span>
+              </a>
             </li>
           </ul>
         </div>
       </nav>
     </div>
   </header>
-  <div class="container">
-    <div class="row d-flex justify-content-center align-items-baseline">
-      <div class="col-12 col-md-12 col-xl-6 col-lg-6">
-        <div class="form-bg" class="voice_call_div" style="display: block;">
-          <h3 class="text-center">Start an Inbound Voice Call</h3>
-          <small id="fromNumberHelp" class="form-text text-muted">The Calling Line Identity assigned
-            on the inbound number and configured <a
-              href="https://portal.enablex.io/projects/dashboard/voice/phone-numbers/">Here</a>.
-            <br />Example - <b>911234567890</b> (without +)</small>
-        </div>
-      </div>
-      <div class="col-12 col-md-12 col-xl-6 col-lg-6">
-        <div class="form-bg" class="voice_call_div" style="display: block;">
-          <h3 class="text-left">List of actions when call started:</h3>
-          <ul id="myList">
-          </ul>
+
+  <div class="page-hero">
+    <div class="container">
+      <h1>
+        Inbound Bridge Recording
+        <span class="badge-demo">SAMPLE APP</span>
+      </h1>
+      <p>Receive an inbound call, bridge it to another number, and record the conversation automatically.</p>
+    </div>
+  </div>
+
+  <!-- ===== Setup Guide ===== -->
+  <div class="container mt-3">
+    <div class="setup-guide">
+      <button class="setup-guide-toggle" data-toggle="collapse" data-target="#setupGuide" aria-expanded="false">
+        <span class="fa fa-info-circle mr-2"></span>Setup Guide — How to run this sample
+        <span class="fa fa-chevron-down toggle-icon ml-auto"></span>
+      </button>
+      <div id="setupGuide" class="collapse">
+        <div class="setup-steps">
+          <div class="setup-step">
+            <div class="step-number">1</div>
+            <div class="step-body">
+              <h6>Install dependencies</h6>
+              <code>npm install</code>
+            </div>
+          </div>
+          <div class="step-divider"></div>
+          <div class="setup-step">
+            <div class="step-number">2</div>
+            <div class="step-body">
+              <h6>Configure credentials</h6>
+              <code>cp env-example .env</code>
+              <p>Edit <strong>.env</strong> and fill in:</p>
+              <ul style="font-size:0.85rem;margin:4px 0 0 16px;line-height:1.8;">
+                <li><strong>ENABLEX_APP_ID</strong> and <strong>ENABLEX_APP_KEY</strong> — from the EnableX portal</li>
+                <li><strong>FROM</strong> — your EnableX virtual number (the caller ID used when bridging)</li>
+                <li><strong>BRIDGETO</strong> — the destination number inbound calls will be bridged to</li>
+                <li><strong>LISTEN_SSL=false</strong> for local testing</li>
+              </ul>
+            </div>
+          </div>
+          <div class="step-divider"></div>
+          <div class="setup-step">
+            <div class="step-number">3</div>
+            <div class="step-body">
+              <h6>Create an ngrok tunnel</h6>
+              <code>ngrok http 3000</code>
+              <p>Copy the <strong>https://…ngrok.io</strong> URL and set it as <strong>PUBLIC_WEBHOOK_URL</strong> in <strong>.env</strong>.</p>
+            </div>
+          </div>
+          <div class="step-divider"></div>
+          <div class="setup-step">
+            <div class="step-number">4</div>
+            <div class="step-body">
+              <h6>Configure portal webhook</h6>
+              <p>In the <a href="https://portal.enablex.io/projects/dashboard/voice/phone-numbers/" target="_blank">EnableX portal</a>, set your virtual number's webhook URL to the ngrok URL + <strong>/event</strong>.</p>
+            </div>
+          </div>
+          <div class="step-divider"></div>
+          <div class="setup-step">
+            <div class="step-number">5</div>
+            <div class="step-body">
+              <h6>Start the server</h6>
+              <code>npm start</code>
+              <p>Open <strong>http://localhost:3000</strong>. Inbound calls will be handled automatically.</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
+
+  <div class="container">
+    <div class="row">
+
+      <!-- Left column: How it works + status -->
+      <div class="col-12 col-md-5 col-lg-4">
+
+        <div class="status-card">
+          <h6>Call Status</h6>
+          <div id="statusPill" class="status-pill idle">
+            <span class="status-dot"></span>
+            <span id="statusText">Waiting for call</span>
+          </div>
+          <div id="recordingIndicator" class="recording-indicator">
+            <span class="rec-dot"></span> Recording in progress
+          </div>
+        </div>
+
+        <div class="flow-card">
+          <h6>How it works</h6>
+
+          <div class="flow-step">
+            <div class="flow-step-icon incoming"><i class="fa fa-phone-volume"></i></div>
+            <div class="flow-step-text">
+              <strong>Inbound call arrives</strong>
+              <span>Webhook fires on your number</span>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="flow-step-icon accept"><i class="fa fa-check"></i></div>
+            <div class="flow-step-text">
+              <strong>Call accepted</strong>
+              <span>Server auto-accepts after 1 s</span>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="flow-step-icon bridge"><i class="fa fa-random"></i></div>
+            <div class="flow-step-text">
+              <strong>Bridge to agent</strong>
+              <span>Connects <code>FROM</code> → <code>BRIDGETO</code></span>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="flow-step-icon record"><i class="fa fa-circle"></i></div>
+            <div class="flow-step-text">
+              <strong>Recording starts</strong>
+              <span>Runs for 12 seconds then stops</span>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="flow-step-icon hangup"><i class="fa fa-phone-slash"></i></div>
+            <div class="flow-step-text">
+              <strong>Call ends</strong>
+              <span>Hangs up after 30 seconds</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right column: Live event log -->
+      <div class="col-12 col-md-7 col-lg-8">
+        <div class="log-card">
+          <div class="log-card-header">
+            <h6>Live Call Events</h6>
+            <span class="log-live-badge"><span class="dot"></span> LIVE</span>
+          </div>
+          <div class="log-body" id="eventLog">
+            <div class="log-empty" id="emptyState">
+              <i class="fa fa-phone-volume"></i>
+              <p>Waiting for an inbound call&hellip;</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>
+    <div class="container">
+      <ul class="footerUl">
+        <li><a href="https://www.enablex.io/developer/" target="_blank">Developer Docs</a></li>
+        <li><a href="https://portal.enablex.io/" target="_blank">EnableX Portal</a></li>
+      </ul>
+    </div>
+  </footer>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"
     integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.0/js/bootstrap.min.js"
     integrity="sha256-OFRAJNoaD8L3Br5lglV7VyLRf0itmoBzWUoM+Sji4/8=" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.1.4/toastr.min.js"
-    integrity="sha256-yNbKY1y6h2rbVcQtf0b8lq4a+xpktyFc3pSYoGAY1qQ=" crossorigin="anonymous"></script>
+
   <script>
+    const STATE_META = {
+      incomingcall:       { label: 'Inbound call received',  icon: 'fa-phone-volume',   status: 'active',    statusText: 'Incoming call' },
+      connected:          { label: 'Call connected',         icon: 'fa-check-circle',   status: 'active',    statusText: 'Connected' },
+      bridged:            { label: 'Call bridged',           icon: 'fa-random',         status: 'active',    statusText: 'Bridged' },
+      recording_started:  { label: 'Recording started',      icon: 'fa-circle',         status: 'recording', statusText: 'Recording' },
+      recording_stopped:  { label: 'Recording stopped',      icon: 'fa-stop-circle',    status: 'active',    statusText: 'Recording stopped' },
+      bridge_disconnected:{ label: 'Bridge disconnected',    icon: 'fa-unlink',         status: 'active',    statusText: 'Bridge ended' },
+      disconnected:       { label: 'Call disconnected',      icon: 'fa-phone-slash',    status: 'ended',     statusText: 'Call ended' },
+    };
 
-    if (!!window.EventSource) {
+    function setStatus(state) {
+      const meta = STATE_META[state];
+      if (!meta) return;
+      const pill = document.getElementById('statusPill');
+      const text = document.getElementById('statusText');
+      const rec  = document.getElementById('recordingIndicator');
+
+      pill.className = 'status-pill ' + meta.status;
+      text.textContent = meta.statusText;
+      rec.className = 'recording-indicator' + (meta.status === 'recording' ? ' active' : '');
+    }
+
+    function addEvent(state, message, time) {
+      const meta = STATE_META[state] || { label: state, icon: 'fa-info-circle' };
+      const log  = document.getElementById('eventLog');
+      const empty = document.getElementById('emptyState');
+
+      if (empty) empty.remove();
+
+      const entry = document.createElement('div');
+      entry.className = 'event-entry ' + state;
+      entry.innerHTML =
+        '<div class="event-icon"><i class="fa ' + meta.icon + '"></i></div>' +
+        '<div class="event-body">' +
+          '<strong>' + meta.label + '</strong>' +
+          '<span class="event-detail">' + escapeHtml(message) + '</span>' +
+        '</div>' +
+        '<div class="event-time">' + escapeHtml(time || '') + '</div>';
+
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+      setStatus(state);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function appendWebhookEvent(rawJson, containerEl) {
+      var formatted;
+      try { formatted = JSON.stringify(JSON.parse(rawJson), null, 2); } catch(_) { formatted = rawJson; }
+      var safe = formatted.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      var ts = new Date().toLocaleTimeString();
+      var li = document.createElement('li');
+      li.style.cssText = 'padding:6px 0;border-bottom:1px solid #f0f0f0;list-style:none;';
+      li.innerHTML = '<span style="color:#999;font-size:0.72rem;margin-right:6px;">' + ts + '</span>'
+        + '<details>'
+        + '<summary style="cursor:pointer;color:var(--blue, #0057b8);font-size:0.8rem;font-weight:600;display:inline;">&#x2691; Webhook Event</summary>'
+        + '<pre style="background:#f4f6f9;border:1px solid #dde;padding:8px 10px;border-radius:4px;font-size:0.7rem;max-height:200px;overflow:auto;margin-top:6px;white-space:pre-wrap;word-break:break-all;">' + safe + '</pre>'
+        + '</details>';
+      containerEl.appendChild(li);
+      containerEl.scrollTop = containerEl.scrollHeight;
+    }
+
+    if (window.EventSource) {
       var evtSource = new EventSource('/event-stream');
-      var eventList = document.getElementById("myList");
-
-      evtSource.onopen = function () {
-        console.log("Connection to server opened.");
-      };
-
-      evtSource.onevent
 
       evtSource.onmessage = function (e) {
-        var newElement = document.createElement("li");
-
-        newElement.textContent = e.data + "\n\n";
-        eventList.appendChild(newElement);
+        if (e.data.startsWith('__WEBHOOK__:')) {
+          var container = document.getElementById('eventLog');
+          appendWebhookEvent(e.data.slice('__WEBHOOK__:'.length), container);
+          return;
+        }
+        try {
+          var evt = JSON.parse(e.data);
+          addEvent(evt.state, evt.message, evt.timestamp);
+        } catch (err) {
+          addEvent('unknown', e.data, '');
+        }
       };
 
       evtSource.onerror = function () {
-        console.log("EventSource failed.");
+        console.warn('SSE connection lost, retrying…');
       };
     } else {
-      alert('EventSource is not supported to this browser');
+      document.getElementById('eventLog').innerHTML =
+        '<div class="log-empty"><i class="fa fa-exclamation-triangle"></i><p>Your browser does not support live events.</p></div>';
     }
   </script>
 </body>

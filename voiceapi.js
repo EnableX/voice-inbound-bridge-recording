@@ -70,7 +70,7 @@ function ivrVoiceCall(callVoiceId, ttsPlayVoice, texttoplay, prompt_ref, callbac
   httpOptions.path = `/voice/v1/call/${callVoiceId}/play`;
   httpOptions.method = 'PUT';
 
-  console.log("inside IVRVOICECALL : " + texttoplay);
+  logger.info(`ivrVoiceCall text: ${texttoplay}`);
   const postData = JSON.stringify({
       //text: 'This is the 1st level menu, Hanging up the call in 10 Sec',
       //asr : true,

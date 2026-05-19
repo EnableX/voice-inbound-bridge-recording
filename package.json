@@ -1,8 +1,11 @@
-{
+﻿{
   "name": "enablexinboundclient",
   "version": "1.0.0",
   "description": "Enablex Inbound Client Example",
-  "main": "client-inbound.js",
+  "main": "client.js",
+  "scripts": {
+    "start": "node client.js"
+  },
   "author": "amit.s",
   "license": "ISC",
   "dependencies": {

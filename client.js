@@ -1,8 +1,6 @@
-// core modules
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
-// modules installed from npm
 const { EventEmitter } = require('events');
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -10,33 +8,24 @@ const { createDecipher } = require('crypto');
 const { connect } = require('ngrok');
 require('dotenv').config();
 const _ = require('lodash');
-// application modules
 const logger = require('./logger');
 const {
-  ivrVoiceCall, hangupCall,bridgeCall, acceptCall, startRecording, stopRecording,
+  hangupCall, bridgeCall, acceptCall, startRecording, stopRecording,
 } = require('./voiceapi');
 
-// Express app setup
 const app = express();
 const eventEmitter = new EventEmitter();
 
 let server;
 let webHookUrl;
-let retrycount = 0;
-let ttsPlayVoice = 'female';
-let digitCollected = false;
 const call = {};
 const sseMsg = [];
 const servicePort = process.env.SERVICE_PORT || 3000;
-const redirect_number = process.env.REDIRECT_NUMBER;
-let dtmf_received = false;
 
-// Handle error generated while creating / starting an http server
 function onError(error) {
   if (error.syscall !== 'listen') {
     throw error;
   }
-
   switch (error.code) {
     case 'EACCES':
       logger.error(`Port ${servicePort} requires elevated privileges`);
@@ -51,7 +40,6 @@ function onError(error) {
   }
 }
 
-// shutdown the node server forcefully
 function shutdown() {
   server.close(() => {
     logger.error('Shutting down the server');
@@ -62,37 +50,30 @@ function shutdown() {
   }, 10000);
 }
 
-// exposes web server running on local machine to the internet
-// @param - web server port
-// @return - public URL of your tunnel
 function createNgrokTunnel() {
   server = app.listen(servicePort, () => {
-    console.log(`Server running on port ${servicePort}`);
+    logger.info(`Server running on port ${servicePort}`);
     (async () => {
       try {
-        //webHookUrl = await connect({ proto: 'http', addr: servicePort });
         webHookUrl = process.env.PUBLIC_WEBHOOK_URL;
-	console.log('ngrok tunnel set up:', webHookUrl);
+        logger.info(`Ngrok tunnel set up: ${webHookUrl}`);
       } catch (error) {
-        console.log(`Error happened while trying to connect via ngrok ${JSON.stringify(error)}`);
+        logger.error(`Error connecting via ngrok: ${JSON.stringify(error)}`);
         shutdown();
         return;
       }
       webHookUrl += '/event';
-      console.log(`To call webhook while inbound calls, Update this URL in portal: ${webHookUrl}`);
+      logger.info(`Webhook URL for inbound calls: ${webHookUrl}`);
     })();
   });
 }
 
-// Set webhook event url
 function setWebHookEventUrl() {
-  logger.info(`Listening on Port ${servicePort}`);
+  logger.info(`Listening on port ${servicePort}`);
   webHookUrl = `${process.env.PUBLIC_WEBHOOK_HOST}/event`;
-  logger.info(`To call webhook while inbound calls, Update this URL in portal: ${webHookUrl}`);
+  logger.info(`Webhook URL for inbound calls: ${webHookUrl}`);
 }
 
-// create and start an HTTPS node app server
-// An SSL Certificate (Self Signed or Registered) is required
 function createAppServer() {
   if (process.env.LISTEN_SSL) {
     const options = {
@@ -103,10 +84,8 @@ function createAppServer() {
       options.ca = [];
       options.ca.push(fs.readFileSync(process.env.CERTIFICATE_SSL_CACERTS).toString());
     }
-    // Create https express server
     server = https.createServer(options, app);
   } else {
-    // Create http express server
     server = http.createServer(app);
   }
   app.set('port', servicePort);
@@ -115,17 +94,16 @@ function createAppServer() {
   server.on('listening', setWebHookEventUrl);
 }
 
-/* Initializing WebServer */
 if (process.env.ENABLEX_APP_ID && process.env.ENABLEX_APP_KEY) {
   if (process.env.USE_NGROK_TUNNEL === 'true' && process.env.USE_PUBLIC_WEBHOOK === 'false') {
     createNgrokTunnel();
   } else if (process.env.USE_PUBLIC_WEBHOOK === 'true' && process.env.USE_NGROK_TUNNEL === 'false') {
     createAppServer();
   } else {
-    logger.error('Incorrect configuration - either USE_NGROK_TUNNEL or USE_PUBLIC_WEBHOOK should be set to true');
+    logger.error('Incorrect configuration - set either USE_NGROK_TUNNEL or USE_PUBLIC_WEBHOOK to true (not both)');
   }
 } else {
-  logger.error('Please set env variables - ENABLEX_APP_ID, ENABLEX_APP_KEY');
+  logger.error('Missing required env variables: ENABLEX_APP_ID, ENABLEX_APP_KEY');
 }
 
 process.on('SIGINT', () => {
@@ -137,7 +115,6 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.static('client'));
 
-// It will send stream / events all the events received from webhook to the client
 app.get('/event-stream', (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -149,98 +126,76 @@ app.get('/event-stream', (req, res) => {
 
   setInterval(() => {
     if (!_.isEmpty(sseMsg[0])) {
-      console.log("Writing Response to Page");
       const data = `${sseMsg[0]}`;
       res.write(`id: ${id}\n`);
       res.write(`data: ${data}\n\n`);
-      sseMsg.pop();
+      sseMsg.shift();
     }
   }, 100);
 });
 
-// Webhook event which will be called by EnableX server once an outbound call is made
-// It should be publicly accessible. Please refer document for webhook security.
 app.post('/event', (req, res) => {
-  logger.info('called');
   let jsonObj;
   if (req.headers['x-algoritm'] !== undefined) {
+    // EnableX sends 'x-algoritm' (their spelling) for encrypted webhook payloads
     const key = createDecipher(req.headers['x-algoritm'], process.env.ENABLEX_APP_ID);
     let decryptedData = key.update(req.body.encrypted_data, req.headers['x-format'], req.headers['x-encoding']);
     decryptedData += key.final(req.headers['x-encoding']);
     jsonObj = JSON.parse(decryptedData);
-    logger.info(JSON.stringify(jsonObj));
   } else {
     jsonObj = req.body;
-    logger.info(JSON.stringify(jsonObj));
   }
-
-  res.send();
-  res.status(200);
+  logger.info(`Webhook event: ${JSON.stringify(jsonObj)}`);
+  res.status(200).send();
+  sseMsg.push('__WEBHOOK__:' + JSON.stringify(jsonObj));
   eventEmitter.emit('voicestateevent', jsonObj);
 });
 
-// Call is completed / disconneted, inform server to hangup the call
-function timeOutHandler(voice_id) {
-  logger.info(`[${voice_id}] Disconnecting the call`);
-  hangupCall(voice_id, () => {});
-  //shutdown();  
+function timeOutHandler(voiceId) {
+  logger.info(`[${voiceId}] Disconnecting the call`);
+  hangupCall(voiceId, () => {});
 }
 
-//Stop recording
-function  recordingStop(voice_id) {
- logger.info(`[${voice_id}] stop the recording`);
- stopRecording(voice_id, () => {});
+function recordingStop(voiceId) {
+  logger.info(`[${voiceId}] Stopping recording`);
+  stopRecording(voiceId, () => {});
 }
 
-function recordingStart(voice_id) {
-  logger.info(`[${voice_id}] start the recording`);
-  startRecording(voice_id , 'bridgerecording_inbound_03', () => {});
+function recordingStart(voiceId) {
+  logger.info(`[${voiceId}] Starting recording`);
+  startRecording(voiceId, 'bridgerecording_inbound_03', () => {});
 }
 
+function pushEvent(state, message) {
+  sseMsg.push(JSON.stringify({ state, message, timestamp: new Date().toLocaleTimeString() }));
+}
 
-/* WebHook Event Handler function */
 function voiceEventHandler(voiceEvent) {
-  let voice_id = voiceEvent.voice_id;
-  if(voiceEvent.state != undefined) {
-	if (voiceEvent.state === 'incomingcall') {
-		voice_id = voiceEvent.voice_id;
-		const eventMsg = `[${voice_id}] Received an inbound Call`;
-		logger.info(eventMsg);
-		sseMsg.push(eventMsg);
-		//acceptCall(voice_id, () => {});
-		setTimeout(()=>{acceptCall(voice_id, () => {})},1000);
-	} else if (voiceEvent.state && voiceEvent.state === 'disconnected') {
-		const eventMsg = `[${voice_id}]Inbound  Call is disconnected`;
-		logger.info(eventMsg);
-		sseMsg.push(eventMsg);
-        } else if (voiceEvent.state && voiceEvent.state === 'connected') {
-		console.log("Call is Connected ")
-		const eventMsg = `[${voice_id}] Call is connected`;
-		logger.info(eventMsg);
-		sseMsg.push(eventMsg);
-	        setTimeout(()=>{bridgeCall(voice_id, process.env.FROM , process.env.BRIDGETO, () => {})},1000);
-	}  else if (voiceEvent.state && voiceEvent.state === 'bridged') {
-                console.log("Inbound Call Is Bridged ")
-                const eventMsg = `[${voice_id}] Call is Bridged`;
-                logger.info(eventMsg);
-                sseMsg.push(eventMsg);
-		 setTimeout(recordingStart, 1000,voiceEvent.voice_id,);
-                setTimeout(recordingStop, 12000,voiceEvent.voice_id);
-                setTimeout(timeOutHandler,30000,voiceEvent.voice_id);
-	} else if(voiceEvent.state && voiceEvent.state === 'bridge_disconnected') {
-                console.log("Bridge call disconnected")
-                const eventMsg = `[${voice_id}] Bridged Disconnected`;
-                logger.info(eventMsg);
-                sseMsg.push(eventMsg);
-        }
+  const voiceId = voiceEvent.voice_id;
 
-  }
-  
-  if (voiceEvent.playstate !== undefined) {
-    console.log(`Received playstate : ${voiceEvent.playstate}`);
+  if (voiceEvent.state === undefined) return;
+
+  if (voiceEvent.state === 'incomingcall') {
+    logger.info(`[${voiceId}] Received an inbound call`);
+    pushEvent('incomingcall', `[${voiceId}] Received an inbound call`);
+    setTimeout(() => { acceptCall(voiceId, () => {}); }, 1000);
+  } else if (voiceEvent.state === 'connected') {
+    logger.info(`[${voiceId}] Call connected`);
+    pushEvent('connected', `[${voiceId}] Call connected`);
+    setTimeout(() => { bridgeCall(voiceId, process.env.FROM, process.env.BRIDGETO, () => {}); }, 1000);
+  } else if (voiceEvent.state === 'bridged') {
+    logger.info(`[${voiceId}] Call bridged`);
+    pushEvent('bridged', `[${voiceId}] Call bridged to ${process.env.BRIDGETO}`);
+    setTimeout(recordingStart, 1000, voiceId);
+    setTimeout(recordingStop, 12000, voiceId);
+    setTimeout(timeOutHandler, 30000, voiceId);
+  } else if (voiceEvent.state === 'bridge_disconnected') {
+    logger.info(`[${voiceId}] Bridge disconnected`);
+    pushEvent('bridge_disconnected', `[${voiceId}] Bridge disconnected`);
+  } else if (voiceEvent.state === 'disconnected') {
+    logger.info(`[${voiceId}] Call disconnected`);
+    pushEvent('disconnected', `[${voiceId}] Call disconnected`);
   }
 }
 
-/* Registering WebHook Event Handler function */
 eventEmitter.on('voicestateevent', voiceEventHandler);
-
